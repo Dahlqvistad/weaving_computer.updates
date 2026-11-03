@@ -29,7 +29,18 @@ def main() -> None:
         if source is None or not source.is_dir():
             raise SystemExit(f"Missing downloaded artifact: {artifact_name}")
         destination = arguments.output / component / f"{platform_name}-{architecture}"
-        shutil.copytree(source, destination)
+        destination.mkdir(parents=True)
+        feed = source / "releases.stable.json"
+        shutil.copy2(feed, destination)
+        payload = json.loads(feed.read_text(encoding="utf-8"))
+        assets = payload.get("Assets") if isinstance(payload, dict) else None
+        if not isinstance(assets, list):
+            raise SystemExit(f"Invalid asset list in {feed}")
+        for asset in assets:
+            filename = asset.get("FileName") if isinstance(asset, dict) else None
+            if not isinstance(filename, str) or Path(filename).name != filename:
+                raise SystemExit(f"Unsafe asset filename in {feed}")
+            shutil.copy2(source / filename, destination / filename)
         versions.add(validate_feed(destination))
     if len(versions) != 1:
         raise SystemExit(f"Product feeds are not coordinated: {sorted(versions)}")
