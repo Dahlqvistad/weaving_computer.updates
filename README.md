@@ -11,9 +11,7 @@ GitHub Pages tree:
 
 ```text
 host/windows-x86_64/
-host/macos-arm64/
 frontend/windows-x86_64/
-frontend/macos-arm64/
 ```
 
 Each directory is a standard Velopack HTTP source containing

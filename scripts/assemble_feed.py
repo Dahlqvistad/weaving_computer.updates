@@ -8,9 +8,7 @@ from pathlib import Path
 
 TARGETS = (
     ("host", "windows", "x86_64"),
-    ("host", "macos", "arm64"),
     ("frontend", "windows", "x86_64"),
-    ("frontend", "macos", "arm64"),
 )
 
 
