@@ -44,7 +44,7 @@ jobs:
           GH_TOKEN: ${{ secrets.PRODUCT_BUILD_TOKEN }}
         shell: bash
         run: |
-          for repo in Dahlqvistad/weaving_computer.host Dahlqvistad/weaving_computer.app; do
+          for repo in Dahlqvistad/weaving_computer.host Dahlqvistad/weaving_computer.frontend; do
             gh workflow run release-coordinated.yaml --repo "$repo" \
               -f version="${{ inputs.version }}" \
               -f sequence="${{ inputs.sequence }}"
@@ -57,7 +57,7 @@ jobs:
           mkdir -p incoming
           for item in \
             "Dahlqvistad/weaving_computer.host|Coordinated host ${{ inputs.version }}|host" \
-            "Dahlqvistad/weaving_computer.app|Coordinated frontend ${{ inputs.version }}|frontend"; do
+            "Dahlqvistad/weaving_computer.frontend|Coordinated frontend ${{ inputs.version }}|frontend"; do
             IFS='|' read -r repo title component <<< "$item"
             run_id=""
             for attempt in $(seq 1 30); do
