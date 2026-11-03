@@ -1,0 +1,95 @@
+name: Publish coordinated stable release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Strict SemVer used by both products
+        required: true
+        type: string
+      sequence:
+        description: Monotonically increasing release sequence
+        required: true
+        type: number
+
+run-name: Publish stable ${{ inputs.version }} (sequence ${{ inputs.sequence }})
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: stable-release
+  cancel-in-progress: false
+
+jobs:
+  coordinate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment:
+      name: stable-publishing
+    steps:
+      - uses: actions/checkout@v6
+      - name: Reject replayed sequence
+        shell: bash
+        run: |
+          current=$(tr -d '[:space:]' < sequence.txt)
+          if (( ${{ inputs.sequence }} <= current )); then
+            echo "Sequence must be greater than $current" >&2
+            exit 1
+          fi
+      - name: Dispatch product builds
+        env:
+          GH_TOKEN: ${{ secrets.PRODUCT_BUILD_TOKEN }}
+        shell: bash
+        run: |
+          for repo in Dahlqvistad/weaving_computer.host Dahlqvistad/weaving_computer.app; do
+            gh workflow run release-coordinated.yaml --repo "$repo" \
+              -f version="${{ inputs.version }}" \
+              -f sequence="${{ inputs.sequence }}"
+          done
+      - name: Wait for product builds and download all artifacts
+        env:
+          GH_TOKEN: ${{ secrets.PRODUCT_BUILD_TOKEN }}
+        shell: bash
+        run: |
+          mkdir -p incoming
+          for item in \
+            "Dahlqvistad/weaving_computer.host|Coordinated host ${{ inputs.version }}|host" \
+            "Dahlqvistad/weaving_computer.app|Coordinated frontend ${{ inputs.version }}|frontend"; do
+            IFS='|' read -r repo title component <<< "$item"
+            run_id=""
+            for attempt in $(seq 1 30); do
+              run_id=$(gh run list --repo "$repo" \
+                --workflow release-coordinated.yaml --event workflow_dispatch \
+                --limit 30 --json databaseId,displayTitle \
+                --jq ".[] | select(.displayTitle == \"$title\") | .databaseId" \
+                | head -n 1)
+              if [[ -n "$run_id" ]]; then break; fi
+              sleep 10
+            done
+            if [[ -z "$run_id" ]]; then
+              echo "Could not find build run for $repo" >&2
+              exit 1
+            fi
+            gh run watch "$run_id" --repo "$repo" --exit-status
+            gh run download "$run_id" --repo "$repo" --dir "incoming/$component"
+          done
+      - name: Assemble and verify Pages feed
+        run: python scripts/assemble_feed.py incoming public
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: public
+      - id: deployment
+        uses: actions/deploy-pages@v4
+      - name: Record published sequence
+        shell: bash
+        run: |
+          echo "${{ inputs.sequence }}" > sequence.txt
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add sequence.txt
+          git commit -m "Publish ${{ inputs.version }} (sequence ${{ inputs.sequence }})"
+          git push
