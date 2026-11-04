@@ -11,6 +11,11 @@ on:
         description: Monotonically increasing release sequence
         required: true
         type: number
+      dispatch_products:
+        description: Dispatch product workflows instead of waiting for tag builds
+        required: true
+        default: true
+        type: boolean
 
 run-name: Publish stable ${{ inputs.version }} (sequence ${{ inputs.sequence }})
 
@@ -31,6 +36,8 @@ jobs:
       name: stable-publishing
     steps:
       - uses: actions/checkout@v6
+      - name: Verify coordinator
+        run: python -m unittest discover -s tests -v
       - name: Reject replayed sequence
         shell: bash
         run: |
@@ -40,6 +47,7 @@ jobs:
             exit 1
           fi
       - name: Dispatch product builds
+        if: ${{ inputs.dispatch_products }}
         env:
           GH_TOKEN: ${{ secrets.PRODUCT_BUILD_TOKEN }}
         shell: bash
@@ -55,14 +63,20 @@ jobs:
         shell: bash
         run: |
           mkdir -p incoming
+          event="workflow_dispatch"
+          version_label="${{ inputs.version }}"
+          if [[ "${{ inputs.dispatch_products }}" != "true" ]]; then
+            event="push"
+            version_label="v${{ inputs.version }}"
+          fi
           for item in \
-            "Dahlqvistad/weaving_computer.host|Coordinated host ${{ inputs.version }}|host" \
-            "Dahlqvistad/weaving_computer.frontend|Coordinated frontend ${{ inputs.version }}|frontend"; do
+            "Dahlqvistad/weaving_computer.host|Coordinated host $version_label|host" \
+            "Dahlqvistad/weaving_computer.frontend|Coordinated frontend $version_label|frontend"; do
             IFS='|' read -r repo title component <<< "$item"
             run_id=""
             for attempt in $(seq 1 30); do
               run_id=$(gh run list --repo "$repo" \
-                --workflow release-coordinated.yaml --event workflow_dispatch \
+                --workflow release-coordinated.yaml --event "$event" \
                 --limit 30 --json databaseId,displayTitle \
                 --jq ".[] | select(.displayTitle == \"$title\") | .databaseId" \
                 | head -n 1)
