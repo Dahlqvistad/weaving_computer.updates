@@ -2,7 +2,7 @@
 
 Run from the WC-split workspace or the updates repository:
 
-    python3 scripts/publish_release.py 1.2.3
+    python3 scripts/publish_release.py
 
 The command pushes matching annotated product tags, then dispatches the updates
 repository. GitHub Actions builds both products from those tags, creates their
@@ -19,6 +19,7 @@ import shutil
 import subprocess
 import time
 from dataclasses import dataclass
+from datetime import UTC, date, datetime
 from pathlib import Path
 from urllib.request import Request, urlopen
 
@@ -59,27 +60,12 @@ PRODUCTS = (
 
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("version", nargs="?", help="Strict stable SemVer, e.g. 1.2.3")
-    parser.add_argument(
-        "--version",
-        dest="version_option",
-        help="Compatibility alias for the positional version",
-    )
-    parser.add_argument(
-        "--sequence",
-        type=int,
-        help="Release sequence; defaults to the current public sequence plus one",
-    )
     parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Run local validation and print the intended publication",
     )
-    arguments = parser.parse_args()
-    if bool(arguments.version) == bool(arguments.version_option):
-        parser.error("provide the version once, either positionally or with --version")
-    arguments.version = normalize_version(arguments.version or arguments.version_option)
-    return arguments
+    return parser.parse_args()
 
 
 def normalize_version(value: str) -> str:
@@ -87,6 +73,56 @@ def normalize_version(value: str) -> str:
     if STRICT_SEMVER.fullmatch(version) is None:
         raise ValueError("Stable releases require a strict MAJOR.MINOR.PATCH version.")
     return version
+
+
+def next_calendar_version(
+    published_versions: list[str],
+    *,
+    release_date: date | None = None,
+) -> str:
+    current_date = release_date or datetime.now(UTC).astimezone().date()
+    prefix = f"{current_date.year % 100}.{current_date.month}"
+    monthly_sequences = []
+    for published_version in published_versions:
+        version = published_version.strip().removeprefix("v")
+        match = STRICT_SEMVER.fullmatch(version)
+        if match is None:
+            continue
+        major, minor, patch = (int(part) for part in version.split("."))
+        if major == current_date.year % 100 and minor == current_date.month:
+            monthly_sequences.append(patch)
+    return f"{prefix}.{max(monthly_sequences, default=0) + 1}"
+
+
+def published_product_versions() -> list[str]:
+    versions: set[str] = set()
+    for product in PRODUCTS:
+        payload = json.loads(
+            output(
+                "gh",
+                "release",
+                "list",
+                "--repo",
+                product.repository,
+                "--limit",
+                "100",
+                "--exclude-drafts",
+                "--exclude-pre-releases",
+                "--json",
+                "tagName",
+            )
+        )
+        if not isinstance(payload, list):
+            raise TypeError(
+                f"Invalid GitHub release list for {product.repository}."
+            )
+        versions.update(
+            str(release["tagName"])
+            for release in payload
+            if isinstance(release, dict)
+            and isinstance(release.get("tagName"), str)
+        )
+    return sorted(versions)
 
 
 def run(
@@ -408,24 +444,17 @@ def verify_publication(version: str, sequence: int) -> None:
 
 def main() -> None:
     arguments = parse_arguments()
-    version: str = arguments.version
     require_prerequisites()
     ensure_updates_repository_is_pushed()
     for product in PRODUCTS:
         ensure_clean_product(product)
         ensure_product_is_pushed(product)
+    version = next_calendar_version(published_product_versions())
+    current_sequence = current_public_sequence()
+    sequence = current_sequence + 1
+    for product in PRODUCTS:
         ensure_tag_does_not_exist(product, version)
         ensure_release_does_not_exist(product, version)
-    current_sequence = current_public_sequence()
-    sequence = (
-        arguments.sequence
-        if arguments.sequence is not None
-        else current_sequence + 1
-    )
-    if sequence <= current_sequence:
-        raise RuntimeError(
-            f"Sequence must be greater than the published value {current_sequence}."
-        )
 
     print(f"Coordinated release: v{version}, sequence {sequence}")
     if arguments.dry_run:

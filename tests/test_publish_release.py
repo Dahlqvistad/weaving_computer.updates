@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+from datetime import date
 from pathlib import Path
 from unittest.mock import patch
 
@@ -13,6 +14,32 @@ class PublishReleaseTests(unittest.TestCase):
         for invalid in ("1.2", "01.2.3", "1.2.3-beta", "latest"):
             with self.subTest(invalid=invalid), self.assertRaises(ValueError):
                 publish_release.normalize_version(invalid)
+
+    def test_calendar_version_uses_next_sequence_for_current_month(self) -> None:
+        version = publish_release.next_calendar_version(
+            ["v26.10.9", "v26.11.1", "26.11.2", "v1.0.16"],
+            release_date=date(2026, 11, 4),
+        )
+
+        self.assertEqual(version, "26.11.3")
+
+    def test_calendar_version_resets_sequence_for_new_month(self) -> None:
+        version = publish_release.next_calendar_version(
+            ["v26.10.9", "v1.0.16"],
+            release_date=date(2026, 11, 1),
+        )
+
+        self.assertEqual(version, "26.11.1")
+
+    def test_published_versions_are_combined_across_products(self) -> None:
+        responses = [
+            json.dumps([{"tagName": "v26.11.1"}]),
+            json.dumps([{"tagName": "v26.11.2"}]),
+        ]
+        with patch.object(publish_release, "output", side_effect=responses):
+            versions = publish_release.published_product_versions()
+
+        self.assertEqual(versions, ["v26.11.1", "v26.11.2"])
 
     def test_project_version_can_be_bumped_safely(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -38,13 +38,19 @@ gh auth setup-git
 Commit product changes, then publish the next stable version with one command:
 
 ```bash
-python3 scripts/publish_release.py 1.2.3
+python3 scripts/publish_release.py
 ```
+
+The script chooses the version automatically as `YY.MONTH.SEQUENCE`, for
+example `v26.11.2` for the second publication in November 2026. The monthly
+sequence is derived from existing host and frontend GitHub Releases. The
+updater's separate monotonic release sequence is also incremented
+automatically and never resets.
 
 The script requires clean, already-pushed `main` branches in all three
 repositories. It updates and
 commits both `pyproject.toml` versions when necessary, pushes those small
-release-preparation commits, chooses the next sequence, pushes matching
+release-preparation commits, chooses both version counters, pushes matching
 annotated release tags to the exact host and frontend repositories, and starts
 this repository's publication workflow.
 The tag-triggered product workflows build on Windows and create the two GitHub
