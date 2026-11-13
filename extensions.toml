@@ -1,0 +1,8 @@
+profile_version = 1
+
+[[extensions]]
+id = "dymo"
+repository = "https://github.com/Dahlqvistad/weaving_computer.extensions.git"
+ref = "dymo-v0.1.0"
+host_path = "dymo/host"
+frontend_path = "dymo/frontend"

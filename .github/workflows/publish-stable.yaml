@@ -11,11 +11,6 @@ on:
         description: Monotonically increasing release sequence
         required: true
         type: number
-      dispatch_products:
-        description: Dispatch product workflows instead of waiting for tag builds
-        required: true
-        default: true
-        type: boolean
 
 run-name: Publish stable ${{ inputs.version }} (sequence ${{ inputs.sequence }})
 
@@ -47,15 +42,16 @@ jobs:
             exit 1
           fi
       - name: Dispatch product builds
-        if: ${{ inputs.dispatch_products }}
         env:
           GH_TOKEN: ${{ secrets.PRODUCT_BUILD_TOKEN }}
         shell: bash
         run: |
           for repo in Dahlqvistad/weaving_computer.host Dahlqvistad/weaving_computer.frontend; do
             gh workflow run release-coordinated.yaml --repo "$repo" \
+              --ref "v${{ inputs.version }}" \
               -f version="${{ inputs.version }}" \
-              -f sequence="${{ inputs.sequence }}"
+              -f sequence="${{ inputs.sequence }}" \
+              -f profile_ref="${{ github.sha }}"
           done
       - name: Wait for product builds and download all artifacts
         env:
@@ -65,10 +61,6 @@ jobs:
           mkdir -p incoming
           event="workflow_dispatch"
           version_label="${{ inputs.version }}"
-          if [[ "${{ inputs.dispatch_products }}" != "true" ]]; then
-            event="push"
-            version_label="v${{ inputs.version }}"
-          fi
           for item in \
             "Dahlqvistad/weaving_computer.host|Coordinated host $version_label|host" \
             "Dahlqvistad/weaving_computer.frontend|Coordinated frontend $version_label|frontend"; do

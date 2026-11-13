@@ -6,7 +6,7 @@ helper. Those security-sensitive mechanics are provided by the maintained,
 MIT-licensed [Velopack](https://github.com/velopack/velopack) project.
 
 The release workflow dispatches matching host and frontend builds, waits for
-all four platform artifacts, validates the Velopack feeds, and deploys a static
+both platform artifacts, validates the Velopack feeds, and deploys a static
 GitHub Pages tree:
 
 ```text
@@ -16,8 +16,14 @@ frontend/windows-x86_64/
 
 Each directory is a standard Velopack HTTP source containing
 `releases.stable.json`, update packages, and the current fresh installer. The
-host reads its own platform feed from Pages and mirrors the two frontend feeds
+host reads its own platform feed from Pages and mirrors the frontend feed
 to clients on the LAN.
+
+`extensions.toml` is the release composition source of truth. Product workflows
+check out this repository at the exact coordinator commit and install every
+locked host or frontend extension before PyInstaller runs. The resulting
+extensions are built into the normal signed application packages without
+placing extension source in either product repository.
 
 ## Publishing
 

@@ -340,8 +340,6 @@ def dispatch_updates(version: str, sequence: int) -> None:
         f"version={version}",
         "-f",
         f"sequence={sequence}",
-        "-f",
-        "dispatch_products=false",
     )
 
 
