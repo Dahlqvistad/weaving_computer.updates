@@ -1,13 +1,14 @@
 # Weaving Computer update feed
 
-This public repository coordinates stable WC-Split releases. It contains no
-custom updater, archive extractor, signature implementation, or installation
-helper. Those security-sensitive mechanics are provided by the maintained,
-MIT-licensed [Velopack](https://github.com/velopack/velopack) project.
+This repository coordinates stable WC-Split releases. Installer creation,
+package verification, staging, activation, and rollback are delegated to the
+maintained, MIT-licensed [Velopack](https://github.com/velopack/velopack)
+project. WC-Split additionally defines a `.wcupdate` transport archive for
+moving the standard host and frontend Velopack feeds to an offline host.
 
-The release workflow dispatches matching host and frontend builds, waits for
-both platform artifacts, validates the Velopack feeds, and deploys a static
-GitHub Pages tree:
+The release tooling either dispatches matching host and frontend builds or
+builds both products on a local Windows computer. It validates the Velopack
+feeds and deploys a static GitHub Pages tree:
 
 ```text
 host/windows-x86_64/
@@ -15,17 +16,78 @@ frontend/windows-x86_64/
 ```
 
 Each directory is a standard Velopack HTTP source containing
-`releases.stable.json`, update packages, and the current fresh installer. The
-host reads its own platform feed from Pages and mirrors the frontend feed
-to clients on the LAN.
+`releases.stable.json` and update packages. Fresh installers are separate build
+outputs. The host reads its own platform feed from Pages and mirrors the
+frontend feed to clients on the LAN.
 
-`extensions.toml` is the release composition source of truth. Product workflows
-check out this repository at the exact coordinator commit and install every
-locked host or frontend extension before PyInstaller runs. The resulting
-extensions are built into the normal signed application packages without
-placing extension source in either product repository.
+`extensions.toml` is the release composition source of truth. Both publication
+paths resolve it to exact extension commits and install every locked host or
+frontend extension before PyInstaller runs. The resulting extensions are built
+into the normal application packages without placing extension source in either
+product repository.
 
-## Publishing
+## Building and publishing
+
+### Local Windows build (no GitHub Actions)
+
+Use a 64-bit Windows 10 or Windows 11 computer with Git installed. For the
+first build, open PowerShell and run this complete command:
+
+```powershell
+git clone https://github.com/Dahlqvistad/weaving_computer.updates.git; cd weaving_computer.updates; .\release-windows.cmd
+```
+
+For every later build, open PowerShell in the cloned
+`weaving_computer.updates` folder and run:
+
+```powershell
+.\release-windows.cmd
+```
+
+The build command fast-forwards the updates repository, installs missing
+GitHub CLI, Python 3.12, and .NET 8 prerequisites with `winget`, and opens
+GitHub's browser login when necessary. It then:
+
+1. selects the next coordinated version and monotonic sequence;
+2. clones clean host, frontend, and locked extension sources;
+3. runs product and extension checks and tests;
+4. builds both Windows applications with PyInstaller and Velopack;
+5. creates fresh host and frontend installers; and
+6. combines both update feeds into one verified `.wcupdate` file.
+
+Nothing is tagged, published, or uploaded. Output remains in
+`.local-release\vVERSION\output` and contains:
+
+```text
+Vavdator-Server-vVERSION-Setup.exe
+Vavdatorn-vVERSION-Setup.exe
+WC-Split-vVERSION-SEQUENCE.wcupdate
+```
+
+Use the two installers for a fresh computer. On an installed host, open
+**Updates**, choose the `.wcupdate` file, wait for it to be staged, and select
+**Activate**. The host update and matching frontend update are applied as one
+coordinated release. Extensions selected by `extensions.toml` are already
+compiled into both packages and are listed in the bundle manifest.
+
+GitHub Actions is not invoked, and no Actions artifact storage is used.
+
+Useful validation and override forms are:
+
+```powershell
+# Select an explicit version.
+.\release-windows.cmd -Version 26.11.3
+
+# Override the deterministic sequence when coordinating with another channel.
+.\release-windows.cmd -Version 26.11.3 -Sequence 26011003
+```
+
+`-SkipTests` exists only for an explicitly accepted emergency. Normal builds
+stop if a product or extension test fails. All application
+and extension changes referenced by `extensions.toml` must be committed and
+pushed before starting from the Windows computer.
+
+### GitHub Actions release
 
 Configure `PRODUCT_BUILD_TOKEN` in this repository's `stable-publishing`
 environment with Actions read/write access to
@@ -59,8 +121,8 @@ commits both `pyproject.toml` versions when necessary, pushes those small
 release-preparation commits, chooses both version counters, pushes matching
 annotated release tags to the exact host and frontend repositories, and starts
 this repository's publication workflow.
-The tag-triggered product workflows build on Windows and create the two GitHub
-Releases; the updates workflow then publishes and verifies both public feeds.
+The product workflows build on Windows and create the two GitHub Releases; the
+updates workflow then publishes and verifies both public feeds.
 Use `--dry-run` to validate without creating tags or starting workflows. The
 workspace-, frontend-, and host-level `release_windows.py` files are
 compatibility entry points for the same command and never build locally.
