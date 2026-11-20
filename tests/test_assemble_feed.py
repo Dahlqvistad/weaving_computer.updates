@@ -77,6 +77,20 @@ host_config_path = ["extensions", "dymo", "enabled"]
                 manifest["products"]["host"]["installer"]["url"],
                 "host/windows-x86_64/WeavingComputer.Host-Setup.exe",
             )
+            self.assertEqual(
+                manifest["products"]["host"]["main_executable"],
+                "Vävdator Server.exe",
+            )
+            self.assertEqual(
+                manifest["products"]["host"]["data_directories"],
+                [
+                    "WeavingComputer.Host/configurations",
+                    "WeavingComputer.Host/database",
+                ],
+            )
+            self.assertEqual(
+                manifest["products"]["frontend"]["data_directories"], []
+            )
             self.assertTrue(
                 (
                     output

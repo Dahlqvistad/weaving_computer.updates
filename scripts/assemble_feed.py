@@ -14,11 +14,24 @@ INSTALLER_MANIFEST_FORMAT = "wc-split-installer"
 INSTALLER_MANIFEST_FORMAT_VERSION = 1
 INSTALLER_MANIFEST_NAME = "installer.stable.json"
 TARGETS = (
-    ("host", "WeavingComputer.Host", "Vavdator Server", "windows", "x86_64"),
+    (
+        "host",
+        "WeavingComputer.Host",
+        "Vävdator Server",
+        "Vävdator Server.exe",
+        (
+            "WeavingComputer.Host/configurations",
+            "WeavingComputer.Host/database",
+        ),
+        "windows",
+        "x86_64",
+    ),
     (
         "frontend",
         "WeavingComputer.Frontend",
-        "Vavdatorn",
+        "Vävdatorn",
+        "Vävdatorn.exe",
+        (),
         "windows",
         "x86_64",
     ),
@@ -56,7 +69,15 @@ def assemble_public_release(
 
     versions: set[str] = set()
     installers: dict[str, dict[str, Any]] = {}
-    for component, package_id, display_name, platform_name, architecture in TARGETS:
+    for (
+        component,
+        package_id,
+        display_name,
+        main_executable,
+        data_directories,
+        platform_name,
+        architecture,
+    ) in TARGETS:
         artifact_name = f"{component}-{platform_name}-{architecture}"
         source = next(incoming.rglob(artifact_name), None)
         if source is None or not source.is_dir():
@@ -88,6 +109,8 @@ def assemble_public_release(
         installers[component] = {
             "display_name": display_name,
             "package_id": package_id,
+            "main_executable": main_executable,
+            "data_directories": list(data_directories),
             "installer": {
                 "url": public_installer.relative_to(output).as_posix(),
                 "size": public_installer.stat().st_size,
