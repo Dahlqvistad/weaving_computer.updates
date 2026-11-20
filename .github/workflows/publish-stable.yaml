@@ -47,6 +47,10 @@ jobs:
         shell: bash
         run: |
           for repo in Dahlqvistad/weaving_computer.host Dahlqvistad/weaving_computer.frontend; do
+            if gh release view "v${{ inputs.version }}" --repo "$repo" > /dev/null 2>&1; then
+              echo "$repo already has release v${{ inputs.version }}; reusing it."
+              continue
+            fi
             gh workflow run release-coordinated.yaml --repo "$repo" \
               --ref "v${{ inputs.version }}" \
               -f version="${{ inputs.version }}" \
@@ -61,25 +65,31 @@ jobs:
           mkdir -p incoming
           event="workflow_dispatch"
           version_label="${{ inputs.version }}"
+          coordinator_started_at=$(gh api \
+            "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --jq .created_at)
           for item in \
             "Dahlqvistad/weaving_computer.host|Coordinated host $version_label|host" \
             "Dahlqvistad/weaving_computer.frontend|Coordinated frontend $version_label|frontend"; do
             IFS='|' read -r repo title component <<< "$item"
-            run_id=""
-            for attempt in $(seq 1 30); do
-              run_id=$(gh run list --repo "$repo" \
-                --workflow release-coordinated.yaml --event "$event" \
-                --limit 30 --json databaseId,displayTitle \
-                --jq ".[] | select(.displayTitle == \"$title\") | .databaseId" \
-                | head -n 1)
-              if [[ -n "$run_id" ]]; then break; fi
-              sleep 10
-            done
-            if [[ -z "$run_id" ]]; then
-              echo "Could not find build run for $repo" >&2
-              exit 1
+            if ! gh release view "v${{ inputs.version }}" --repo "$repo" > /dev/null 2>&1; then
+              tag_commit=$(gh api "repos/$repo/commits/v${{ inputs.version }}" --jq .sha)
+              run_id=""
+              for attempt in $(seq 1 30); do
+                run_id=$(gh run list --repo "$repo" \
+                  --workflow release-coordinated.yaml --event "$event" \
+                  --limit 30 --json databaseId,displayTitle,headSha,createdAt \
+                  --jq ".[] | select(.displayTitle == \"$title\" and .headSha == \"$tag_commit\" and .createdAt >= \"$coordinator_started_at\") | .databaseId" \
+                  | head -n 1)
+                if [[ -n "$run_id" ]]; then break; fi
+                sleep 10
+              done
+              if [[ -z "$run_id" ]]; then
+                echo "Could not find current build run for $repo" >&2
+                exit 1
+              fi
+              gh run watch "$run_id" --repo "$repo" --exit-status
             fi
-            gh run watch "$run_id" --repo "$repo" --exit-status
             release_directory="incoming/$component/${component}-windows-x86_64"
             mkdir -p "$release_directory"
             gh release download "v${{ inputs.version }}" --repo "$repo" \
