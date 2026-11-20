@@ -80,10 +80,20 @@ def install_extensions(profile_path: Path, product: Product) -> None:
                 "clone",
                 "--filter=blob:none",
                 "--no-checkout",
+                "--no-tags",
                 extension.repository,
                 str(checkout),
             )
-            _run("git", "-C", str(checkout), "switch", "--detach", extension.ref)
+            _run(
+                "git",
+                "-C",
+                str(checkout),
+                "fetch",
+                "--depth=1",
+                "origin",
+                extension.ref,
+            )
+            _run("git", "-C", str(checkout), "switch", "--detach", "FETCH_HEAD")
             package = checkout / extension.package_path(product)
             if not (package / "pyproject.toml").is_file():
                 raise RuntimeError(f"Extension package does not exist: {package}")
