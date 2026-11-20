@@ -16,9 +16,14 @@ frontend/windows-x86_64/
 ```
 
 Each directory is a standard Velopack HTTP source containing
-`releases.stable.json` and update packages. Fresh installers are separate build
-outputs. The host reads its own platform feed from Pages and mirrors the
-frontend feed to clients on the LAN.
+`releases.stable.json`, update packages, and the latest verified product
+installer. The Pages root also publishes `installer.stable.json` for the private
+general installer. That installer always reads the current manifest before
+downloading anything, so a previously downloaded copy installs the latest
+coordinated host and frontend release instead of a version embedded in the
+installer. Its source and executable are kept in the private
+`weaving_computer.installer` repository. The host reads its own platform feed
+from Pages and mirrors the frontend feed to clients on the LAN.
 
 `extensions.toml` is the release composition source of truth. Both publication
 paths resolve it to exact extension commits and install every locked host or
@@ -122,10 +127,19 @@ release-preparation commits, chooses both version counters, pushes matching
 annotated release tags to the exact host and frontend repositories, and starts
 this repository's publication workflow.
 The product workflows build on Windows and create the two GitHub Releases; the
-updates workflow then publishes and verifies both public feeds.
+updates workflow then publishes and verifies both public feeds, the stable
+installer manifest, and the two product `Setup.exe` files used by the private
+general installer. The general installer supports install/update, repair, and
+uninstall. Repair reruns the latest verified Velopack installers; uninstall
+removes both application installations but preserves production data and
+settings stored outside the application directories.
 Use `--dry-run` to validate without creating tags or starting workflows. The
 workspace-, frontend-, and host-level `release_windows.py` files are
 compatibility entry points for the same command and never build locally.
+
+Extensions selected by `extensions.toml` are compiled into both products and
+listed by the installer. Hardware integrations are not silently activated; for
+example, DYMO must be enabled and configured in Host settings after installation.
 
 The macOS build is ad-hoc signed for internal use. The first installation
 therefore requires explicit Gatekeeper approval. Before public or untrusted

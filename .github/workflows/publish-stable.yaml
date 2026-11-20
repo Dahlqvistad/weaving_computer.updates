@@ -96,7 +96,10 @@ jobs:
               --dir "$release_directory"
           done
       - name: Assemble and verify Pages feed
-        run: python scripts/assemble_feed.py incoming public
+        run: >-
+          python scripts/assemble_feed.py incoming public
+          --sequence "${{ inputs.sequence }}"
+          --extensions extensions.toml
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:
