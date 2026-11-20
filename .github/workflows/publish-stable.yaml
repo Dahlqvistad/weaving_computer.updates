@@ -53,7 +53,7 @@ jobs:
               -f sequence="${{ inputs.sequence }}" \
               -f profile_ref="${{ github.sha }}"
           done
-      - name: Wait for product builds and download all artifacts
+      - name: Wait for product builds and download release assets
         env:
           GH_TOKEN: ${{ secrets.PRODUCT_BUILD_TOKEN }}
         shell: bash
@@ -80,7 +80,10 @@ jobs:
               exit 1
             fi
             gh run watch "$run_id" --repo "$repo" --exit-status
-            gh run download "$run_id" --repo "$repo" --dir "incoming/$component"
+            release_directory="incoming/$component/${component}-windows-x86_64"
+            mkdir -p "$release_directory"
+            gh release download "v${{ inputs.version }}" --repo "$repo" \
+              --dir "$release_directory"
           done
       - name: Assemble and verify Pages feed
         run: python scripts/assemble_feed.py incoming public
