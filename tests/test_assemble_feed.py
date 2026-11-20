@@ -42,7 +42,14 @@ class AssembleFeedTests(unittest.TestCase):
 
             extensions = root / "extensions.toml"
             extensions.write_text(
-                'profile_version = 1\n\n[[extensions]]\nid = "dymo"\nref = "dymo-v0.1.1"\n',
+                """profile_version = 1
+
+[[extensions]]
+id = "dymo"
+display_name = "DYMO LabelWriter"
+ref = "dymo-v0.1.1"
+host_config_path = ["extensions", "dymo", "enabled"]
+""",
                 encoding="utf-8",
             )
             assemble_public_release(
@@ -58,8 +65,13 @@ class AssembleFeedTests(unittest.TestCase):
             self.assertEqual(manifest["format"], "wc-split-installer")
             self.assertEqual(manifest["release"]["version"], "26.11.3")
             self.assertEqual(manifest["release"]["sequence"], 10)
+            self.assertEqual(manifest["extensions"][0]["id"], "dymo")
             self.assertEqual(
-                manifest["extensions"], [{"id": "dymo", "ref": "dymo-v0.1.1"}]
+                manifest["extensions"][0]["display_name"], "DYMO LabelWriter"
+            )
+            self.assertEqual(
+                manifest["extensions"][0]["host_config_path"],
+                ["extensions", "dymo", "enabled"],
             )
             self.assertEqual(
                 manifest["products"]["host"]["installer"]["url"],

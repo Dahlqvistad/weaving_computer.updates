@@ -158,27 +158,49 @@ def _find_installer(directory: Path) -> Path:
     return installers[0]
 
 
-def _load_extensions(profile_path: Path) -> list[dict[str, str]]:
+def _load_extensions(profile_path: Path) -> list[dict[str, Any]]:
     with profile_path.open("rb") as profile_file:
         payload = tomllib.load(profile_file)
     raw_extensions = payload.get("extensions")
     if not isinstance(raw_extensions, list):
         raise ValueError(f"Invalid extension profile: {profile_path}")
-    extensions: list[dict[str, str]] = []
+    extensions: list[dict[str, Any]] = []
     seen: set[str] = set()
     for raw_extension in raw_extensions:
         if not isinstance(raw_extension, dict):
             raise ValueError(f"Invalid extension entry: {profile_path}")
         extension_id = raw_extension.get("id")
+        display_name = raw_extension.get("display_name")
         ref = raw_extension.get("ref")
+        host_config_path = raw_extension.get("host_config_path")
         if not isinstance(extension_id, str) or not extension_id.strip():
             raise ValueError(f"Extension is missing an ID: {profile_path}")
         if not isinstance(ref, str) or not ref.strip():
             raise ValueError(f"Extension {extension_id} is missing a ref.")
+        if not isinstance(display_name, str) or not display_name.strip():
+            raise ValueError(f"Extension {extension_id} is missing a display name.")
+        if (
+            not isinstance(host_config_path, list)
+            or not host_config_path
+            or any(
+                not isinstance(part, str) or not part.strip()
+                for part in host_config_path
+            )
+        ):
+            raise ValueError(
+                f"Extension {extension_id} has an invalid host config path."
+            )
         if extension_id in seen:
             raise ValueError(f"Duplicate extension ID: {extension_id}")
         seen.add(extension_id)
-        extensions.append({"id": extension_id, "ref": ref})
+        extensions.append(
+            {
+                "id": extension_id,
+                "display_name": display_name,
+                "ref": ref,
+                "host_config_path": host_config_path,
+            }
+        )
     return sorted(extensions, key=lambda extension: extension["id"])
 
 
