@@ -15,6 +15,7 @@ on:
 run-name: Publish stable ${{ inputs.version }} (sequence ${{ inputs.sequence }})
 
 permissions:
+  actions: read
   contents: write
   pages: write
   id-token: write
@@ -104,6 +105,21 @@ jobs:
       - uses: actions/upload-pages-artifact@v4
         with:
           path: public
+      - name: Wait for the Pages artifact to appear in the API
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for attempt in $(seq 1 12); do
+            artifact_id=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?name=github-pages" \
+              --jq '.artifacts[] | select(.expired == false) | .id') || artifact_id=""
+            if [[ -n "$artifact_id" ]]; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "The uploaded github-pages artifact is not visible yet." >&2
+          exit 1
       - id: deployment
         uses: actions/deploy-pages@v4
       - name: Record published sequence
